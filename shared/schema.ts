@@ -31,13 +31,14 @@ export const userRoleEnum = pgEnum('user_role', ['manager', 'engineer', 'reviewe
 // Status enum for stories
 export const storyStatusEnum = pgEnum('story_status', ['pending', 'in_review', 'reviewed']);
 
-// User storage table (required for Replit Auth)
+// User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: varchar("username").unique().notNull(),
   email: varchar("email").unique(),
+  password: varchar("password").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
   role: userRoleEnum("role").notNull().default('engineer'),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -108,6 +109,15 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export const registerSchema = insertUserSchema.extend({
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const insertStorySchema = createInsertSchema(stories).omit({
   id: true,
   createdAt: true,
@@ -123,8 +133,10 @@ export const insertCoverageHistorySchema = createInsertSchema(coverageHistory).o
 export const updateStorySchema = insertStorySchema.partial();
 
 // Types
-export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type LoginData = z.infer<typeof loginSchema>;
+export type RegisterData = z.infer<typeof registerSchema>;
 export type Story = typeof stories.$inferSelect;
 export type InsertStory = z.infer<typeof insertStorySchema>;
 export type UpdateStory = z.infer<typeof updateStorySchema>;

@@ -1,20 +1,80 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertStorySchema, updateStorySchema } from "@shared/schema";
+import { authenticateToken, hashPassword, comparePassword, generateToken, type AuthRequest } from "./auth";
+import { insertStorySchema, updateStorySchema, loginSchema, registerSchema } from "@shared/schema";
 import { z } from "zod";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
-
+export function registerRoutes(app: Express): Server {
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      const userData = registerSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(userData.username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+
+      // Hash password
+      const hashedPassword = await hashPassword(userData.password);
+      
+      // Create user
+      const user = await storage.createUser({
+        ...userData,
+        password: hashedPassword,
+      });
+
+      // Generate token
+      const token = generateToken(user);
+      
+      // Return user without password
+      const { password, ...userWithoutPassword } = user;
+      res.status(201).json({ user: userWithoutPassword, token });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(400).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { username, password } = loginSchema.parse(req.body);
+      
+      // Find user
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check password
+      const isValidPassword = await comparePassword(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Generate token
+      const token = generateToken(user);
+      
+      // Return user without password
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword, token });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(400).json({ message: "Login failed" });
+    }
+  });
+
+  app.get('/api/auth/user', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      // Return user without password
+      const { password, ...userWithoutPassword } = req.user;
+      res.json(userWithoutPassword);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -22,9 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Story routes
-  app.post('/api/stories', isAuthenticated, async (req: any, res) => {
+  app.post('/api/stories', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user || (user.role !== 'manager' && user.role !== 'engineer')) {
@@ -44,9 +104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/stories', isAuthenticated, async (req: any, res) => {
+  app.get('/api/stories', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -69,9 +129,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/stories/my-reviews', isAuthenticated, async (req: any, res) => {
+  app.get('/api/stories/my-reviews', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const stories = await storage.getStoriesByReviewer(userId);
       res.json(stories);
     } catch (error) {
@@ -80,9 +140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/stories/:id/reviewer', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/stories/:id/reviewer', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'manager') {
@@ -98,9 +158,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/stories/:id/coverage', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/stories/:id/coverage', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -138,9 +198,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Analytics routes
-  app.get('/api/analytics/team', isAuthenticated, async (req: any, res) => {
+  app.get('/api/analytics/team', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'manager') {
@@ -155,9 +215,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/analytics/users', isAuthenticated, async (req: any, res) => {
+  app.get('/api/analytics/users', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'manager') {
@@ -172,9 +232,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/analytics/personal', isAuthenticated, async (req: any, res) => {
+  app.get('/api/analytics/personal', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const stats = await storage.getUserStats(userId);
       res.json(stats);
     } catch (error) {
@@ -184,9 +244,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all users for reviewer assignment
-  app.get('/api/users', isAuthenticated, async (req: any, res) => {
+  app.get('/api/users', authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'manager') {

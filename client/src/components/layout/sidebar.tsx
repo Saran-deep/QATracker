@@ -160,7 +160,10 @@ export default function Sidebar() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => window.location.href = '/api/logout'}
+            onClick={() => {
+              localStorage.removeItem('authToken');
+              window.location.href = '/';
+            }}
             className="text-muted-foreground hover:text-foreground p-2"
             data-testid="button-logout"
           >
