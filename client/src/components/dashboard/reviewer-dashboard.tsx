@@ -5,11 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardCheck, CheckCircle } from "lucide-react";
+import { ClipboardCheck, CheckCircle, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { StoryWithDetails } from "@/types";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import Filters, { type FilterState } from "@/components/common/filters";
+import { exportToCSV, formatStoriesForExport } from "@/utils/export";
 
 interface ReviewData {
   score: string;
@@ -20,6 +22,7 @@ export default function ReviewerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [reviewData, setReviewData] = useState<{[key: string]: ReviewData}>({});
+  const [filters, setFilters] = useState<FilterState>({});
 
   // Fetch stories for review
   const { data: reviewStories, isLoading: reviewsLoading } = useQuery<StoryWithDetails[]>({
@@ -111,8 +114,54 @@ export default function ReviewerDashboard() {
     }));
   };
 
-  const pendingStories = reviewStories?.filter(story => !story.coverageScore) || [];
-  const completedStories = reviewStories?.filter(story => story.coverageScore) || [];
+  // Apply filters to stories
+  const filteredStories = useMemo(() => {
+    if (!reviewStories) return [];
+    
+    return reviewStories.filter(story => {
+      // Date filter
+      if (filters.dateFrom && new Date(story.createdAt) < filters.dateFrom) return false;
+      if (filters.dateTo && new Date(story.createdAt) > filters.dateTo) return false;
+      
+      // Status filter
+      if (filters.status) {
+        const score = story.coverageScore ? parseFloat(story.coverageScore) : null;
+        switch (filters.status) {
+          case 'pass':
+            return score !== null && score >= 90;
+          case 'fail':
+            return score !== null && score < 90;
+          case 'pending':
+            return score === null;
+        }
+      }
+      
+      return true;
+    });
+  }, [reviewStories, filters]);
+
+  const pendingStories = filteredStories?.filter(story => !story.coverageScore) || [];
+  const completedStories = filteredStories?.filter(story => story.coverageScore) || [];
+
+  const handleExportReviews = () => {
+    if (completedStories.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No completed reviews to export with current filters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const exportData = formatStoriesForExport(completedStories);
+    const timestamp = new Date().toISOString().split('T')[0];
+    exportToCSV(exportData, `my-reviews-${timestamp}.csv`);
+    
+    toast({
+      title: "Success",
+      description: `Exported ${completedStories.length} reviews to CSV`,
+    });
+  };
 
   if (reviewsLoading) {
     return (
@@ -135,6 +184,13 @@ export default function ReviewerDashboard() {
 
   return (
     <div className="p-6">
+      {/* Filters */}
+      <Filters
+        filters={filters}
+        onFiltersChange={setFilters}
+        showUserFilter={false}
+      />
+      
       {/* Review Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <Card>
@@ -254,7 +310,18 @@ export default function ReviewerDashboard() {
       {/* Completed Reviews */}
       <Card>
         <div className="px-6 py-4 border-b border-border">
-          <h3 className="text-lg font-semibold text-foreground">Recent Completed Reviews</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-foreground">Recent Completed Reviews</h3>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleExportReviews}
+              data-testid="button-export-reviews-csv"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </div>
         
         <div className="overflow-x-auto">

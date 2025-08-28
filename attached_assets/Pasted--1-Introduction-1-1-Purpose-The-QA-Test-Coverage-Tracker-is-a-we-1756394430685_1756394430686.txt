@@ -1,0 +1,250 @@
+
+
+---
+
+## **1. Introduction**
+
+### **1.1 Purpose**
+
+The **QA Test Coverage Tracker** is a web application designed to measure and monitor adherence to QA KRAs (Key Responsibility Areas). Each QA engineer is required to maintain a **≥90% test coverage score** for all tasks/stories during a specific review period (quarter/year).
+
+This application provides:
+
+* **Dashboards** for QA Engineers, Reviewers, and Managers.
+* **Peer-review workflows** where creators cannot edit their own scores, and scores must be validated by reviewers.
+* **Manager overrides** for disputes.
+* **Reports & analytics** to evaluate both individual and team performance.
+
+### **1.2 Scope**
+
+The application will:
+
+* Track stories/tasks with coverage scores.
+* Enforce reviewer-based validation.
+* Provide performance dashboards and reports.
+* Allow filtering by **date, user, and project**.
+* Maintain an **audit trail** of all score edits.
+
+---
+
+## **2. Users & Roles**
+
+### **2.1 QA Engineer (Creator)**
+
+* Creates test cases for assigned stories.
+* Can view personal dashboard.
+* Cannot edit coverage scores.
+* Can see assigned reviewer for each story.
+
+### **2.2 QA Reviewer**
+
+* Assigned to validate coverage of another QA engineer’s stories.
+* Can add/edit coverage scores for assigned reviews.
+* Cannot edit own story scores.
+
+### **2.3 QA Manager**
+
+* Oversees team-wide performance.
+* Can assign/reassign reviewers.
+* Can add/edit/override scores for any story.
+* Can generate/export reports.
+
+---
+
+## **3. Functional Requirements**
+
+### **3.1 Authentication & Access**
+
+* System must support **OAuth2 / JWT authentication**.
+* Roles (Engineer, Reviewer, Manager) determined at login.
+* Role-based access control enforced.
+
+---
+
+### **3.2 Task/Story Management**
+
+**Inputs:**
+
+* Story/Task ID (from Jira/ADO or manual).
+* Title/Description.
+* Creator (QA Engineer).
+* Reviewer (must ≠ Creator).
+* Coverage Score (%).
+* Status:
+
+  * Pass (≥90%)
+  * Fail (<90%)
+* Date Completed.
+
+**Rules:**
+
+* Reviewer must always be different from Creator.
+* Only Reviewer/Manager can assign/edit scores.
+* Scores must be numeric between **0–100**.
+* Stories without scores remain **Pending Review**.
+
+---
+
+### **3.3 Workflows**
+
+#### **3.3.1 User Login Flow**
+
+1. User logs in.
+2. System authenticates and assigns role.
+3. User redirected to role-based dashboard.
+
+---
+
+#### **3.3.2 Task Creation Flow**
+
+1. Task pulled from Jira/ADO API OR manually added.
+2. Creator automatically mapped to logged-in QA Engineer.
+3. Reviewer assigned by Manager or system rule.
+4. Task status = **Pending Review**.
+
+---
+
+#### **3.3.3 Review Flow**
+
+1. Reviewer logs in → sees pending reviews.
+2. Reviewer evaluates test cases.
+3. Reviewer assigns Coverage % and submits.
+4. System calculates status (Pass/Fail).
+5. Audit log entry created.
+
+---
+
+#### **3.3.4 Manager Override Flow**
+
+1. Manager searches for a story.
+2. Manager edits coverage score.
+3. Audit log updated with old/new scores.
+4. Manager override supersedes reviewer scores.
+
+---
+
+#### **3.3.5 Reporting Flow**
+
+1. User selects filters (date range, user, project).
+2. System generates report with:
+
+   * Story ID | Title | Creator | Reviewer | Coverage % | Status | Date.
+3. Report exported in CSV/PDF.
+
+---
+
+#### **3.3.6 Audit Logging Flow**
+
+* Every score edit creates an audit log entry:
+
+  * Story ID, Old Score, New Score, Edited By, Timestamp.
+* Audit log viewable only by Manager.
+
+---
+
+### **3.4 Dashboards**
+
+#### **3.4.1 User Dashboard**
+
+* Read-only list of stories created by user.
+* Fields: Story ID, Title, Reviewer, Coverage %, Status, Date.
+* Metrics:
+
+  * Total Stories Worked On.
+  * Average Coverage %.
+
+#### **3.4.2 Reviewer Dashboard**
+
+* List of stories assigned for review.
+* Editable Coverage % field.
+* Metrics:
+
+  * Pending Reviews.
+  * Average Coverage %.
+
+#### **3.4.3 Manager Dashboard**
+
+* Filters: Date range, User, Project.
+* Metrics:
+
+  * Team Average Coverage.
+  * Total Stories.
+  * Users with <90% average coverage.
+* Tables:
+
+  * User | #Stories | Avg Coverage | Below 90%?
+* Charts:
+
+  * Bar chart – Avg Coverage by user.
+  * Line chart – Team coverage trend over time.
+* Controls: Assign/Change reviewer, Edit/Override scores.
+
+---
+
+### **3.5 Filtering**
+
+* Available on all dashboards.
+* Filters: From-Date, To-Date, User (Manager only), Project (if integrated).
+
+---
+
+### **3.6 Notifications (Phase 2)**
+
+* Weekly email summaries to users.
+* Alerts for:
+
+  * Pending reviews.
+  * Users <90% average coverage.
+
+---
+
+## **4. Business Rules**
+
+1. Coverage % must be 0–100.
+2. Reviewer ≠ Creator.
+3. Manager override always takes precedence.
+4. Stories without reviewer flagged.
+5. Stories without score remain Pending Review.
+
+---
+
+## **5. Data Model (High-Level)**
+
+### **5.1 Tables**
+
+1. **Users**
+
+   * user\_id, name, email, role.
+
+2. **Stories**
+
+   * story\_id, title, creator\_id, reviewer\_id, coverage\_score, status, completed\_date.
+
+3. **Audit\_Log**
+
+   * log\_id, story\_id, editor\_id, old\_score, new\_score, timestamp.
+
+---
+
+## **6. Non-Functional Requirements**
+
+* **Performance**: Dashboards load <2s for 1000+ stories.
+* **Scalability**: Support 100+ users, 10,000+ stories.
+* **Security**: RBAC, encrypted authentication.
+* **Reliability**: 99.5% uptime.
+* **Auditability**: Score edits tracked.
+
+---
+
+## **7. Success Metrics**
+
+* % of QA Engineers ≥90% coverage.
+* Team-wide average coverage.
+* % of stories reviewed on time.
+* # of Manager overrides (indicator of reviewer accuracy).
+* Reduction in manual reporting effort.
+
+---
+
+
+

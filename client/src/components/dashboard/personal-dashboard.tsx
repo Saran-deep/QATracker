@@ -1,13 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ListTodo, Percent, Trophy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ListTodo, Percent, Trophy, Download } from "lucide-react";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { UserWithStats, StoryWithDetails } from "@/types";
+import { useState, useMemo } from "react";
+import Filters, { type FilterState } from "@/components/common/filters";
+import { exportToCSV, formatStoriesForExport } from "@/utils/export";
+import CreateStoryForm from "@/components/forms/create-story-form";
 
 export default function PersonalDashboard() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [filters, setFilters] = useState<FilterState>({});
 
   // Fetch personal statistics
   const { data: personalStats, isLoading: statsLoading } = useQuery<UserWithStats>({
@@ -53,6 +60,52 @@ export default function PersonalDashboard() {
       <Badge className="bg-red-100 text-red-800">Fail</Badge>;
   };
 
+  // Apply filters to stories
+  const filteredStories = useMemo(() => {
+    if (!stories) return [];
+    
+    return stories.filter(story => {
+      // Date filter
+      if (filters.dateFrom && new Date(story.createdAt) < filters.dateFrom) return false;
+      if (filters.dateTo && new Date(story.createdAt) > filters.dateTo) return false;
+      
+      // Status filter
+      if (filters.status) {
+        const score = story.coverageScore ? parseFloat(story.coverageScore) : null;
+        switch (filters.status) {
+          case 'pass':
+            return score !== null && score >= 90;
+          case 'fail':
+            return score !== null && score < 90;
+          case 'pending':
+            return score === null;
+        }
+      }
+      
+      return true;
+    });
+  }, [stories, filters]);
+
+  const handleExportStories = () => {
+    if (filteredStories.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No stories to export with current filters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const exportData = formatStoriesForExport(filteredStories);
+    const timestamp = new Date().toISOString().split('T')[0];
+    exportToCSV(exportData, `my-stories-${timestamp}.csv`);
+    
+    toast({
+      title: "Success",
+      description: `Exported ${filteredStories.length} stories to CSV`,
+    });
+  };
+
   if (statsLoading || storiesLoading) {
     return (
       <div className="p-6">
@@ -74,6 +127,13 @@ export default function PersonalDashboard() {
 
   return (
     <div className="p-6">
+      {/* Filters */}
+      <Filters
+        filters={filters}
+        onFiltersChange={setFilters}
+        showUserFilter={false}
+      />
+      
       {/* Personal Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
@@ -144,7 +204,24 @@ export default function PersonalDashboard() {
       {/* Personal Stories Table */}
       <Card>
         <div className="px-6 py-4 border-b border-border">
-          <h3 className="text-lg font-semibold text-foreground">My Stories</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-foreground">My Stories</h3>
+            <div className="flex space-x-2">
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleExportStories}
+                data-testid="button-export-personal-csv"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+              <CreateStoryForm onSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['/api/stories'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/analytics/personal'] });
+              }} />
+            </div>
+          </div>
         </div>
         
         <div className="overflow-x-auto">
@@ -160,7 +237,7 @@ export default function PersonalDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {stories?.map((story) => (
+              {filteredStories?.map((story) => (
                 <tr key={story.id} className="hover:bg-accent" data-testid={`row-personal-story-${story.id}`}>
                   <td className="px-6 py-4 font-mono text-sm text-primary" data-testid={`text-personal-ticket-${story.id}`}>
                     {story.ticketId}
@@ -190,7 +267,7 @@ export default function PersonalDashboard() {
                   </td>
                 </tr>
               ))}
-              {(!stories || stories.length === 0) && (
+              {(!filteredStories || filteredStories.length === 0) && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
                     No stories found. Your created stories will appear here.

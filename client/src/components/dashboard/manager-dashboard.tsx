@@ -18,12 +18,16 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { TeamStats, UserWithStats, StoryWithDetails } from "@/types";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import CreateStoryForm from "@/components/forms/create-story-form";
+import Filters, { type FilterState } from "@/components/common/filters";
+import { exportToCSV, formatStoriesForExport, formatUsersForExport } from "@/utils/export";
 
 export default function ManagerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingCoverage, setEditingCoverage] = useState<{[key: string]: string}>({});
+  const [filters, setFilters] = useState<FilterState>({});
 
   // Fetch team statistics
   const { data: teamStats, isLoading: statsLoading } = useQuery<TeamStats>({
@@ -59,6 +63,11 @@ export default function ManagerDashboard() {
         return;
       }
     },
+  });
+
+  // Fetch all users for filter dropdown
+  const { data: allUsers } = useQuery<User[]>({
+    queryKey: ['/api/users'],
   });
 
   // Fetch all stories
@@ -169,6 +178,99 @@ export default function ManagerDashboard() {
       <Badge className="bg-red-100 text-red-800">Fail</Badge>;
   };
 
+  // Apply filters to stories
+  const filteredStories = useMemo(() => {
+    if (!stories) return [];
+    
+    return stories.filter(story => {
+      // Date filter
+      if (filters.dateFrom && new Date(story.createdAt) < filters.dateFrom) return false;
+      if (filters.dateTo && new Date(story.createdAt) > filters.dateTo) return false;
+      
+      // User filter
+      if (filters.userId && story.creatorId !== filters.userId) return false;
+      
+      // Status filter
+      if (filters.status) {
+        const score = story.coverageScore ? parseFloat(story.coverageScore) : null;
+        switch (filters.status) {
+          case 'pass':
+            return score !== null && score >= 90;
+          case 'fail':
+            return score !== null && score < 90;
+          case 'pending':
+            return score === null;
+        }
+      }
+      
+      return true;
+    });
+  }, [stories, filters]);
+
+  // Apply filters to users
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    
+    return users.filter(user => {
+      // User filter
+      if (filters.userId && user.id !== filters.userId) return false;
+      
+      // Status filter
+      if (filters.status) {
+        switch (filters.status) {
+          case 'pass':
+            return user.status === 'pass';
+          case 'fail':
+            return user.status === 'fail';
+          case 'pending':
+            return false; // Users don't have pending status
+        }
+      }
+      
+      return true;
+    });
+  }, [users, filters]);
+
+  const handleExportStories = () => {
+    if (filteredStories.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No stories to export with current filters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const exportData = formatStoriesForExport(filteredStories);
+    const timestamp = new Date().toISOString().split('T')[0];
+    exportToCSV(exportData, `stories-report-${timestamp}.csv`);
+    
+    toast({
+      title: "Success",
+      description: `Exported ${filteredStories.length} stories to CSV`,
+    });
+  };
+
+  const handleExportUsers = () => {
+    if (filteredUsers.length === 0) {
+      toast({
+        title: "No Data", 
+        description: "No users to export with current filters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const exportData = formatUsersForExport(filteredUsers);
+    const timestamp = new Date().toISOString().split('T')[0];
+    exportToCSV(exportData, `users-report-${timestamp}.csv`);
+    
+    toast({
+      title: "Success",
+      description: `Exported ${filteredUsers.length} users to CSV`,
+    });
+  };
+
   if (statsLoading || usersLoading || storiesLoading) {
     return (
       <div className="p-6">
@@ -190,6 +292,14 @@ export default function ManagerDashboard() {
 
   return (
     <div className="p-6">
+      {/* Filters */}
+      <Filters
+        filters={filters}
+        onFiltersChange={setFilters}
+        users={allUsers}
+        showUserFilter={true}
+      />
+      
       {/* Metrics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
@@ -263,14 +373,28 @@ export default function ManagerDashboard() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">Team Performance</h3>
             <div className="flex space-x-2">
-              <Button variant="secondary" size="sm" data-testid="button-export-csv">
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleExportUsers}
+                data-testid="button-export-users-csv"
+              >
                 <Download className="w-4 h-4 mr-2" />
-                Export CSV
+                Export Users CSV
               </Button>
-              <Button size="sm" data-testid="button-add-story">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Story
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleExportStories}
+                data-testid="button-export-stories-csv"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Stories CSV
               </Button>
+              <CreateStoryForm onSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['/api/stories'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/analytics/team'] });
+              }} />
             </div>
           </div>
         </div>
@@ -287,7 +411,7 @@ export default function ManagerDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {users?.map((user) => (
+              {filteredUsers?.map((user) => (
                 <tr key={user.id} className="hover:bg-accent" data-testid={`row-user-${user.id}`}>
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -365,7 +489,7 @@ export default function ManagerDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {stories?.slice(0, 10).map((story) => (
+              {filteredStories?.slice(0, 10).map((story) => (
                 <tr key={story.id} className="hover:bg-accent" data-testid={`row-story-${story.id}`}>
                   <td className="px-6 py-4 font-mono text-sm text-primary" data-testid={`text-ticket-${story.id}`}>
                     {story.ticketId}
@@ -395,7 +519,7 @@ export default function ManagerDashboard() {
                           <SelectValue placeholder="Select Reviewer..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {users?.filter(u => u.role === 'reviewer' || u.role === 'manager').map(user => (
+                          {allUsers?.filter(u => u.role === 'reviewer' || u.role === 'manager').map(user => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.firstName ? 
                                 `${user.firstName} ${user.lastName || ''}` :
