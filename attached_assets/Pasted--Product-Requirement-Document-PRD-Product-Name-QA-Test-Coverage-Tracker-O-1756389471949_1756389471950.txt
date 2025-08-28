@@ -1,0 +1,225 @@
+
+---
+
+# **Product Requirement Document (PRD)**
+
+**Product Name**: QA Test Coverage Tracker
+**Owner**: QA Manager / Engineering Productivity Team
+**Version**: 1.1
+**Date**: 28-Aug-2025
+
+---
+
+## **1. Purpose**
+
+The purpose of this application is to track and monitor **test coverage adherence** for QA engineers against their KRAs (Key Responsibility Areas), specifically achieving **≥90% test coverage** for tasks/stories worked on in a given period (quarter/year).
+
+The system enables:
+
+* **Dashboards per user** to view coverage performance.
+* **Role-based editing** where only reviewers and managers can assign/edit scores.
+* **Peer-review workflow** where each test case creator is paired with a reviewer.
+* **Reporting** for management to evaluate coverage compliance at individual and team levels.
+
+---
+
+## **2. Goals & Objectives**
+
+* Ensure **visibility** of test coverage at both user and team levels.
+* Provide a **review-based mechanism** to validate coverage scores.
+* Support **KRA measurement** with average coverage tracking.
+* Allow **filtering by date range** for quarterly/yearly reviews.
+* Provide **exportable reports** to support performance evaluations.
+
+---
+
+## **3. Users & Roles**
+
+### 3.1 **QA Manager (Admin role)**
+
+* Access dashboards for all users.
+* Can **add/edit coverage scores** for any task/story.
+* Can **assign reviewers**.
+* Generate and export team-wide reports.
+* Resolve disputes by overriding reviewer scores.
+
+### 3.2 **QA Engineer (Creator role)**
+
+* Works on test case creation for tasks/stories.
+* Can view personal dashboard with scores (read-only).
+* Cannot edit their own scores.
+* Can see who the assigned reviewer is.
+
+### 3.3 **QA Reviewer (Peer role)**
+
+* Assigned to validate test coverage for another user’s task/story.
+* Can **add/edit coverage scores** for stories where they are the reviewer.
+* Cannot edit their own story scores.
+* Reviewer must always be **different from creator**.
+
+---
+
+## **4. Functional Requirements**
+
+### 4.1 **Dashboard**
+
+* **User Dashboard**
+
+  * Shows personal performance:
+
+    * Total tasks/stories worked on.
+    * List of stories with Ticket ID, Title, Coverage %, Reviewer, Status, Date.
+    * Average coverage score (over selected date range).
+  * Read-only scores.
+
+* **Reviewer Dashboard**
+
+  * Shows all tasks assigned for review.
+  * Editable “Coverage %” field for those tasks.
+
+* **Manager Dashboard**
+
+  * Overview of all team members.
+  * Metrics:
+
+    * Total stories (team-wide).
+    * Team average coverage.
+    * List of users with avg coverage score.
+    * Highlight users <90% average.
+  * Editable scores for any task.
+  * Option to assign/change reviewers.
+
+---
+
+### 4.2 **Task/Story Workflow**
+
+Each task/story has the following fields:
+
+* Ticket ID (integration with Jira/Azure DevOps OR manual entry).
+* Title.
+* Creator (QA engineer).
+* Reviewer (assigned peer).
+* Coverage Score % (entered/edited by Reviewer or Manager).
+* Status (Pass ≥90%, Fail <90%).
+* Date completed.
+
+**Workflow:**
+
+1. QA Engineer creates test cases for a task/story.
+2. Reviewer (assigned automatically/manually by Manager) reviews and assigns coverage %.
+3. Reviewer submits score → Story is “Reviewed”.
+4. Manager may override or update scores if needed.
+
+---
+
+### 4.3 **Permissions Matrix**
+
+| Action                        | QA Engineer (Creator) | QA Reviewer | QA Manager |
+| ----------------------------- | --------------------- | ----------- | ---------- |
+| View own dashboard            | ✅                     | ✅           | ✅          |
+| View team dashboards          | ❌                     | ❌           | ✅          |
+| Add/Edit own story score      | ❌                     | ❌           | ✅          |
+| Add/Edit reviewed story score | ❌                     | ✅           | ✅          |
+| Assign/change reviewer        | ❌                     | ❌           | ✅          |
+| Override reviewer score       | ❌                     | ❌           | ✅          |
+
+---
+
+### 4.4 **Filtering**
+
+* Date range filter (from–to).
+* Filter by user (Manager only).
+* Filter by project (if integrated with Jira/ADO).
+
+---
+
+### 4.5 **Reporting**
+
+* Reports include columns:
+
+  * Ticket ID | Title | Creator | Reviewer | Coverage % | Status | Date
+* Team-wide quarterly/annual coverage reports.
+* Export: CSV, PDF.
+* Highlight:
+
+  * Users below 90% average.
+  * Stories without a reviewer.
+  * Stories without a score.
+
+---
+
+### 4.6 **Notifications (Phase 2 / Future)**
+
+* Weekly summary emails (to users/managers).
+* Alerts if average coverage <90%.
+* Reminder for pending reviews.
+
+---
+
+## **5. Non-Functional Requirements**
+
+* **Usability**: Simple UI with intuitive dashboards.
+* **Performance**: Dashboards load <2s for 1000+ records.
+* **Security**: Role-based access control (RBAC).
+* **Scalability**: Supports 100+ users and 10,000+ tasks.
+* **Availability**: 99.5% uptime SLA.
+* **Auditability**: Track who added/edited coverage scores.
+
+---
+
+## **6. Technical Specifications**
+
+* **Frontend**: React.js (Next.js optional) + TailwindCSS.
+* **Backend**: Node.js + Express (or NestJS).
+* **Database**: PostgreSQL (preferred) or MySQL.
+* **Authentication**: OAuth2 / JWT.
+* **Integration**: Jira/ADO API for fetching task metadata.
+* **Deployment**: Dockerized, hosted on AWS/Azure/GCP.
+* **RBAC**: Enforced in backend services with clear permissions matrix.
+
+---
+
+## **7. KPIs / Success Metrics**
+
+* % of users achieving ≥90% coverage average.
+* Team-wide average coverage.
+* % of stories reviewed vs pending review.
+* Reduction in manual reporting effort (baseline vs after rollout).
+* # of manager overrides (indicator of reviewer accuracy).
+
+---
+
+## **8. Wireframes (Conceptual)**
+
+* **User Dashboard**
+
+  * Header: Name + Date Filter.
+  * Metrics: Total Stories, Average Coverage.
+  * Table: Ticket ID | Title | Coverage % | Reviewer | Status | Date.
+  * Graph: Coverage trend over time.
+
+* **Reviewer Dashboard**
+
+  * “My Reviews Pending” list.
+  * Editable Coverage % input.
+  * Submit/Update button.
+
+* **Manager Dashboard**
+
+  * Filters: Date, User, Project.
+  * Metrics: Team Avg Coverage, Total Stories, #Users <90%.
+  * Table: User | #Stories | Avg Coverage | Below 90%?
+  * Graph: Bar chart – Avg Coverage per user.
+
+---
+
+## **9. Future Enhancements**
+
+* Automatic score syncing from CI/CD coverage tools.
+* Gamification (leaderboards, badges for >95% consistency).
+* Predictive analytics (forecast coverage performance).
+* Slack/MS Teams integration for review reminders.
+
+---
+
+
