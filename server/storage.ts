@@ -19,7 +19,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   // Story operations
   createStory(story: InsertStory): Promise<Story>;
   updateStory(id: string, updates: UpdateStory): Promise<Story>;
@@ -28,11 +28,16 @@ export interface IStorage {
   getStoriesByReviewer(reviewerId: string): Promise<StoryWithDetails[]>;
   getAllStories(): Promise<StoryWithDetails[]>;
   assignReviewer(storyId: string, reviewerId: string): Promise<Story>;
-  
+
   // Coverage operations
-  updateCoverage(storyId: string, score: number, updatedById: string, comments?: string): Promise<Story>;
+  updateCoverage(
+    storyId: string,
+    score: number,
+    updatedById: string,
+    comments?: string
+  ): Promise<Story>;
   getCoverageHistory(storyId: string): Promise<any[]>;
-  
+
   // Analytics operations
   getUserStats(userId: string): Promise<UserWithStats>;
   getTeamStats(): Promise<{
@@ -52,7 +57,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
     return user;
   }
 
@@ -95,9 +103,12 @@ export class DatabaseStorage implements IStorage {
       })
       .from(stories)
       .innerJoin(users, eq(stories.creatorId, users.id))
-      .leftJoin(sql`${users} as reviewer_user`, eq(stories.reviewerId, sql`reviewer_user.id`))
+      .leftJoin(
+        sql`${users} as reviewer_user`,
+        eq(stories.reviewerId, sql`reviewer_user.id`)
+      )
       .where(eq(stories.id, id));
-    
+
     return story as any;
   }
 
@@ -110,11 +121,18 @@ export class DatabaseStorage implements IStorage {
       })
       .from(stories)
       .innerJoin(users, eq(stories.creatorId, users.id))
-      .leftJoin(sql`${users} as reviewer_user`, eq(stories.reviewerId, sql`reviewer_user.id`))
+      .leftJoin(
+        sql`${users} as reviewer_user`,
+        eq(stories.reviewerId, sql`reviewer_user.id`)
+      )
       .where(eq(stories.creatorId, creatorId))
       .orderBy(desc(stories.createdAt));
-    
-    return result.map(r => ({ ...r.story, creator: r.creator, reviewer: r.reviewer })) as any;
+
+    return result.map((r) => ({
+      ...r.story,
+      creator: r.creator,
+      reviewer: r.reviewer,
+    })) as any;
   }
 
   async getStoriesByReviewer(reviewerId: string): Promise<StoryWithDetails[]> {
@@ -126,11 +144,18 @@ export class DatabaseStorage implements IStorage {
       })
       .from(stories)
       .innerJoin(users, eq(stories.creatorId, users.id))
-      .leftJoin(sql`${users} as reviewer_user`, eq(stories.reviewerId, sql`reviewer_user.id`))
+      .leftJoin(
+        sql`${users} as reviewer_user`,
+        eq(stories.reviewerId, sql`reviewer_user.id`)
+      )
       .where(eq(stories.reviewerId, reviewerId))
       .orderBy(desc(stories.createdAt));
-    
-    return result.map(r => ({ ...r.story, creator: r.creator, reviewer: r.reviewer })) as any;
+
+    return result.map((r) => ({
+      ...r.story,
+      creator: r.creator,
+      reviewer: r.reviewer,
+    })) as any;
   }
 
   async getAllStories(): Promise<StoryWithDetails[]> {
@@ -142,23 +167,39 @@ export class DatabaseStorage implements IStorage {
       })
       .from(stories)
       .innerJoin(users, eq(stories.creatorId, users.id))
-      .leftJoin(sql`${users} as reviewer_user`, eq(stories.reviewerId, sql`reviewer_user.id`))
+      .leftJoin(
+        sql`${users} as reviewer_user`,
+        eq(stories.reviewerId, sql`reviewer_user.id`)
+      )
       .orderBy(desc(stories.createdAt));
-    
-    return result.map(r => ({ ...r.story, creator: r.creator, reviewer: r.reviewer })) as any;
+
+    return result.map((r) => ({
+      ...r.story,
+      creator: r.creator,
+      reviewer: r.reviewer,
+    })) as any;
   }
 
   async assignReviewer(storyId: string, reviewerId: string): Promise<Story> {
-    return this.updateStory(storyId, { reviewerId, status: 'in_review' });
+    return this.updateStory(storyId, { reviewerId, status: "in_review" });
   }
 
   // Coverage operations
-  async updateCoverage(storyId: string, score: number, updatedById: string, comments?: string): Promise<Story> {
+  async updateCoverage(
+    storyId: string,
+    score: number,
+    updatedById: string,
+    comments?: string
+  ): Promise<Story> {
     // Get current story for history
-    const currentStory = await db.select().from(stories).where(eq(stories.id, storyId)).limit(1);
-    
+    const currentStory = await db
+      .select()
+      .from(stories)
+      .where(eq(stories.id, storyId))
+      .limit(1);
+
     if (currentStory.length === 0) {
-      throw new Error('Story not found');
+      throw new Error("Story not found");
     }
 
     const previousScore = currentStory[0].coverageScore;
@@ -173,7 +214,7 @@ export class DatabaseStorage implements IStorage {
     });
 
     // Update story
-    const status = score >= 90 ? 'reviewed' : 'reviewed';
+    const status = score >= 90 ? "reviewed" : "reviewed";
     return this.updateStory(storyId, {
       coverageScore: score.toString(),
       status,
@@ -212,8 +253,10 @@ export class DatabaseStorage implements IStorage {
       .groupBy(users.id);
 
     const totalStories = userResult.totalStories || 0;
-    const averageCoverage = userResult.averageCoverage ? parseFloat(userResult.averageCoverage) : 0;
-    const status = averageCoverage >= 90 ? 'pass' : 'fail';
+    const averageCoverage = userResult.averageCoverage
+      ? parseFloat(userResult.averageCoverage)
+      : 0;
+    const status = averageCoverage >= 90 ? "pass" : "fail";
 
     return {
       ...userResult.user,
@@ -241,15 +284,19 @@ export class DatabaseStorage implements IStorage {
         pendingReviews: count(stories.id),
       })
       .from(stories)
-      .where(eq(stories.status, 'pending'));
+      .where(eq(stories.status, "pending"));
 
     // Get users below 90%
     const userStats = await this.getAllUsersWithStats();
-    const usersBelow90 = userStats.filter(user => user.averageCoverage < 90).length;
+    const usersBelow90 = userStats.filter(
+      (user) => user.averageCoverage < 90
+    ).length;
 
     return {
       totalStories: statsResult.totalStories || 0,
-      averageCoverage: statsResult.averageCoverage ? parseFloat(statsResult.averageCoverage) : 0,
+      averageCoverage: statsResult.averageCoverage
+        ? parseFloat(statsResult.averageCoverage)
+        : 0,
       usersBelow90,
       pendingReviews: pendingResult.pendingReviews || 0,
     };
@@ -264,14 +311,16 @@ export class DatabaseStorage implements IStorage {
       })
       .from(users)
       .leftJoin(stories, eq(users.id, stories.creatorId))
-      .where(eq(users.role, 'engineer'))
       .groupBy(users.id);
 
-    return result.map(r => ({
+    return result.map((r) => ({
       ...r.user,
       totalStories: r.totalStories || 0,
       averageCoverage: r.averageCoverage ? parseFloat(r.averageCoverage) : 0,
-      status: (r.averageCoverage && parseFloat(r.averageCoverage) >= 90) ? 'pass' : 'fail',
+      status:
+        r.averageCoverage && parseFloat(r.averageCoverage) >= 90
+          ? "pass"
+          : "fail",
     }));
   }
 }

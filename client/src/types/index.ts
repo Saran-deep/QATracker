@@ -1,4 +1,4 @@
-export type UserRole = 'manager' | 'engineer' | 'reviewer';
+export type UserRole = "manager" | "engineer" | "reviewer";
 
 export interface User {
   id: string;
@@ -18,7 +18,7 @@ export interface Story {
   creatorId: string;
   reviewerId?: string;
   coverageScore?: string;
-  status: 'pending' | 'in_review' | 'reviewed';
+  status: "pending" | "in_review" | "reviewed";
   comments?: string;
   dateCompleted?: Date;
   createdAt: Date;
@@ -33,7 +33,7 @@ export interface StoryWithDetails extends Story {
 export interface UserWithStats extends User {
   totalStories: number;
   averageCoverage: number;
-  status: 'pass' | 'fail';
+  status: "pass" | "fail";
 }
 
 export interface TeamStats {
